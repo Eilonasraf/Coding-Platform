@@ -1,35 +1,25 @@
-// server/index.js
-
 require('dotenv').config();
-const express  = require('express');
-const http     = require('http');
-const cors     = require('cors');
+
+const express = require('express');
+const http = require('http');
+const cors = require('cors');
 const mongoose = require('mongoose');
 const { Server } = require('socket.io');
 const blocksRouter = require('./routes/codeblocks');
 
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN;
-// e.g. "https://client-production-7386.up.railway.app"
+const app = express();
 
+// CORS configuration
 const corsOptions = {
-  origin: CLIENT_ORIGIN,
-  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  origin: process.env.CLIENT_ORIGIN || 'https://client-production-7386.up.railway.app',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true
 };
 
-const app = express();
-// REST API CORS & JSON
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 app.use(express.json());
 
-// CodeBlocks routes
-app.use('/api/codeblocks', blocksRouter);
-
-// Health check
-app.get('/', (req, res) => res.send('OK'));
-
-// MongoDB
+// Connect to MongoDB
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
@@ -38,71 +28,78 @@ mongoose
     process.exit(1);
   });
 
-// HTTP + WebSocket server
-const server = http.createServer(app);
-const io = new Server(server, { cors: corsOptions });
+// Mount your CodeBlocks router
+app.use('/api/codeblocks', blocksRouter);
 
-// In-memory room state
-const rooms = {}; // { [roomId]: { mentor: socket.id|null, students: Set<socket.id> } }
+// Health check
+app.get('/', (req, res) => res.send('OK'));
+
+// Create HTTP server
+const server = http.createServer(app);
+
+// Add Socket.IO
+const io = new Server(server, {
+  cors: corsOptions
+});
+
+// Socket.IO room management
+const rooms = {};
 
 io.on('connection', socket => {
   console.log('Socket connected:', socket.id);
-
+  
   socket.on('join-room', roomId => {
-    if (!rooms[roomId]) rooms[roomId] = { mentor: null, students: new Set() };
+    console.log(`Socket ${socket.id} joining room ${roomId}`);
+    
+    if (!rooms[roomId]) {
+      rooms[roomId] = { mentor: null, students: new Set() };
+    }
+    
     const room = rooms[roomId];
     socket.join(roomId);
 
-    // assign role
+    // Assign role: first person is mentor, others are students
     if (!room.mentor) {
       room.mentor = socket.id;
       socket.emit('role', 'mentor');
+      console.log(`${socket.id} assigned as mentor`);
     } else {
       room.students.add(socket.id);
       socket.emit('role', 'student');
+      console.log(`${socket.id} assigned as student`);
     }
 
-    // broadcast student count
+    // Send student count to all in room
     io.to(roomId).emit('student-count', room.students.size);
 
-    // relay code changes
-    socket.on('code-change', code => socket.to(roomId).emit('code-update', code));
-
-    // explicit leave
-    socket.on('leave-room', id => {
-      const r = rooms[id];
-      if (!r) return;
-
-      if (socket.id === r.mentor) {
-        // Mentor leaving: kick everyone
-        io.to(id).emit('mentor-left');
-        io.in(id).socketsLeave(id);
-        delete rooms[id];
-      } else {
-        // Student leaving
-        r.students.delete(socket.id);
-        socket.leave(id);
-        io.to(id).emit('student-count', r.students.size);
-      }
+    // Handle code changes
+    socket.on('code-change', code => {
+      socket.to(roomId).emit('code-update', code);
     });
-
-    // handle disconnect same as leave
+    
+    // Handle disconnect
     socket.on('disconnect', () => {
       const r = rooms[roomId];
       if (!r) return;
-
+      
       if (socket.id === r.mentor) {
+        // Mentor left - notify students and clean up room
         io.to(roomId).emit('mentor-left');
+        // Force everyone to leave the room
         io.in(roomId).socketsLeave(roomId);
+        // Clean up server‐side state
         delete rooms[roomId];
+        console.log(`Mentor ${socket.id} left, room ${roomId} deleted`);
       } else {
+        // Student left
         r.students.delete(socket.id);
         io.to(roomId).emit('student-count', r.students.size);
+        console.log(`Student ${socket.id} left room ${roomId}`);
       }
     });
   });
 });
 
-// listen on Railway port (8080)
+// Listen on Railway's port
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
