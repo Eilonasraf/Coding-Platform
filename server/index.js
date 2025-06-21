@@ -84,7 +84,10 @@ io.on('connection', socket => {
       
       if (socket.id === r.mentor) {
         // Mentor left - notify students and clean up room
-        socket.to(roomId).emit('mentor-left');
+        io.to(roomId).emit('mentor-left');
+        // Force everyone to leave the room
+        io.in(roomId).socketsLeave(roomId);
+        // Clean up server‐side state
         delete rooms[roomId];
         console.log(`Mentor ${socket.id} left, room ${roomId} deleted`);
       } else {
