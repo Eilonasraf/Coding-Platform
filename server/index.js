@@ -1,21 +1,33 @@
 require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
+
+const express  = require('express');
+const cors     = require('cors');
+const mongoose = require('mongoose');
+const blocksRouter = require('./routes/codeblocks');
 
 const app = express();
 
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'https://client-production-7386.up.railway.app';
-const corsOptions = {
-  origin: CLIENT_ORIGIN,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true
-};
+// Open CORS for everyone (just for testing)
+app.use(cors());
 
-app.use(cors(corsOptions));
-// Only use '*' for preflight, never a URL!
-app.options('*', cors(corsOptions));
+// Handle preflight requests with named wildcard
+app.options('*catchall', cors());
 
+// JSON body parsing
+app.use(express.json());
+
+// Mount your CodeBlocks API
+app.use('/api/codeblocks', blocksRouter);
+
+// Health check
 app.get('/', (req, res) => res.send('OK'));
 
+// Connect to MongoDB
+mongoose
+  .connect(process.env.MONGODB_URI)
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB error:', err));
+
+// Start Express
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`listening on ${PORT}`));
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
