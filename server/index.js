@@ -1,61 +1,41 @@
 require('dotenv').config();
 
-const express = require('express');
-const http = require('http');
-const cors = require('cors');
+const express  = require('express');
+const http     = require('http');
+const cors     = require('cors');
 const mongoose = require('mongoose');
 const { Server } = require('socket.io');
 const blocksRouter = require('./routes/codeblocks');
 
-const app = express();
+// In production we'll lock CORS down to just your client URL
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN;
 
-// Debug logging
-console.log('CLIENT_ORIGIN:', process.env.CLIENT_ORIGIN);
-console.log('MONGODB_URI:', process.env.MONGODB_URI ? 'Set' : 'Not set');
-
-// CORS configuration - allow all origins for now
 const corsOptions = {
-  origin: true, // This allows any origin
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: CLIENT_ORIGIN,
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  credentials: true
 };
 
+const app = express();
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
 app.use(express.json());
-
-// Add request logging
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path} from ${req.get('Origin') || 'unknown origin'}`);
-  next();
-});
-
 app.use('/api/codeblocks', blocksRouter);
 
-// Health check
-app.get('/', (req, res) => res.send('Server OK'));
-
-// Connect to MongoDB
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error('MongoDB error:', err));
+  .catch(err => console.error('MongoDB connection error:', err));
 
 const server = http.createServer(app);
-
-// Socket.IO with permissive CORS
-const io = new Server(server, {
-  cors: {
-    origin: true, // Allow any origin
-    methods: ['GET', 'POST']
-  }
-});
+const io = new Server(server, { cors: corsOptions });
 
 const rooms = {};
 
 io.on('connection', socket => {
   console.log('Socket connected:', socket.id);
-  
+
   socket.on('join-room', roomId => {
     if (!rooms[roomId]) rooms[roomId] = { mentor: null, students: new Set() };
     const room = rooms[roomId];
@@ -73,7 +53,18 @@ io.on('connection', socket => {
     io.to(roomId).emit('student-count', room.students.size);
 
     socket.on('code-change', code => socket.to(roomId).emit('code-update', code));
-    
+    socket.on('leave-room', id => {
+      const r = rooms[id];
+      if (!r) return;
+      if (socket.id === r.mentor) {
+        socket.to(id).emit('mentor-left');
+        delete rooms[id];
+      } else {
+        r.students.delete(socket.id);
+        socket.leave(id);
+        io.to(id).emit('student-count', r.students.size);
+      }
+    });
     socket.on('disconnect', () => {
       const r = rooms[roomId];
       if (!r) return;
