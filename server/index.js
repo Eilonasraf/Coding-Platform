@@ -6,23 +6,10 @@ const mongoose = require('mongoose');
 const { Server } = require('socket.io');
 const blocksRouter = require('./routes/codeblocks');
 
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN; // e.g. "https://client-production-7386.up.railway.app"
+const rooms = {}; // { [roomId]: { mentor: socketId|null, students: Set<socketId> } }
 
 const app = express();
-
-// enable CORS for all REST endpoints
-app.use(cors({
-  origin: CLIENT_ORIGIN,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true
-}));
-// handle preflight for all routes
-app.options('*', cors({
-  origin: CLIENT_ORIGIN,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true
-}));
-
+app.use(cors());
 app.use(express.json());
 app.use('/api/codeblocks', blocksRouter);
 
@@ -32,17 +19,9 @@ mongoose
   .catch(err => console.error(err));
 
 const server = http.createServer(app);
-
-// configure Socket.IO with the same CORS settings
 const io = new Server(server, {
-  cors: {
-    origin: CLIENT_ORIGIN,
-    methods: ['GET', 'POST', 'OPTIONS'],
-    credentials: true
-  }
+  cors: { origin: process.env.CLIENT_ORIGIN }
 });
-
-const rooms = {}; // { [roomId]: { mentor: socketId|null, students: Set<socketId> } }
 
 io.on('connection', socket => {
   console.log('Socket connected:', socket.id);
@@ -74,9 +53,11 @@ io.on('connection', socket => {
       if (!r) return;
 
       if (socket.id === r.mentor) {
+        // mentor leaving: notify & close room
         socket.to(id).emit('mentor-left');
         delete rooms[id];
       } else {
+        // student leaving: remove and broadcast new count
         r.students.delete(socket.id);
         socket.leave(id);
         io.to(id).emit('student-count', r.students.size);
