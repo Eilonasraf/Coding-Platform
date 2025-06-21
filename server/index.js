@@ -1,3 +1,5 @@
+// server/index.js
+
 require('dotenv').config();
 
 const express  = require('express');
@@ -7,21 +9,28 @@ const mongoose = require('mongoose');
 const { Server } = require('socket.io');
 const blocksRouter = require('./routes/codeblocks');
 
-// CORS options for your deployed client
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN; 
+// should be "https://client-production-7386.up.railway.app"
+
 const corsOptions = {
-  origin: process.env.CLIENT_ORIGIN,
+  origin: CLIENT_ORIGIN,
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   credentials: true
 };
 
 const app = express();
+
+// Enable CORS for REST API
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
+// JSON body parsing
 app.use(express.json());
+
+// Mount the CodeBlocks router
 app.use('/api/codeblocks', blocksRouter);
 
-// Health check
+// Health check endpoint
 app.get('/', (req, res) => res.send('OK'));
 
 // Connect to MongoDB
@@ -33,13 +42,13 @@ mongoose
     process.exit(1);
   });
 
-// Create HTTP server and attach Socket.IO
+// Create an HTTP server, then attach Socket.IO to it
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: corsOptions
 });
 
-const rooms = {}; // { [roomId]: { mentor: socketId|null, students: Set<socketId> } }
+const rooms = {}; // { [roomId]: { mentor: socket.id|null, students: Set<socket.id> } }
 
 io.on('connection', socket => {
   console.log('Socket connected:', socket.id);
@@ -50,7 +59,7 @@ io.on('connection', socket => {
 
     socket.join(roomId);
 
-    // assign role
+    // Assign mentor or student
     if (!room.mentor) {
       room.mentor = socket.id;
       socket.emit('role', 'mentor');
@@ -59,16 +68,19 @@ io.on('connection', socket => {
       socket.emit('role', 'student');
     }
 
-    // broadcast updated count
+    // Broadcast the current student count
     io.to(roomId).emit('student-count', room.students.size);
 
-    // relay code changes
-    socket.on('code-change', code => socket.to(roomId).emit('code-update', code));
+    // Relay code changes to other clients
+    socket.on('code-change', code => {
+      socket.to(roomId).emit('code-update', code);
+    });
 
-    // handle leaving
+    // Handle a user leaving the room
     socket.on('leave-room', id => {
       const r = rooms[id];
       if (!r) return;
+
       if (socket.id === r.mentor) {
         socket.to(id).emit('mentor-left');
         delete rooms[id];
@@ -79,9 +91,11 @@ io.on('connection', socket => {
       }
     });
 
+    // Clean up on disconnect
     socket.on('disconnect', () => {
       const r = rooms[roomId];
       if (!r) return;
+
       if (socket.id === r.mentor) {
         socket.to(roomId).emit('mentor-left');
         delete rooms[roomId];
@@ -93,6 +107,6 @@ io.on('connection', socket => {
   });
 });
 
-// Listen on Railway’s port
+// Start listening on Railway’s port (defaults to 8080 in production)
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => console.log(`Listening on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
