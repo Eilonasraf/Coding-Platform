@@ -7,12 +7,24 @@ const mongoose = require('mongoose');
 const { Server } = require('socket.io');
 const blocksRouter = require('./routes/codeblocks');
 
+// Ensure CLIENT_ORIGIN is defined (fallback to your deployed client URL)
+const CLIENT_ORIGIN =
+  process.env.CLIENT_ORIGIN ||
+  'https://client-production-7386.up.railway.app';
+
+const corsOptions = {
+  origin: CLIENT_ORIGIN,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true
+};
+
 const app = express();
 
-// —— Allow all origins for both REST and WebSocket ——
-// (In production you can lock this down to your client URL,
-// but let's get it working first.)
-app.use(cors());
+// Enable CORS for all REST endpoints
+app.use(cors(corsOptions));
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
 app.use(express.json());
 app.use('/api/codeblocks', blocksRouter);
 
@@ -23,15 +35,10 @@ mongoose
 
 const server = http.createServer(app);
 
-// Socket.IO with open CORS
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET','POST','PUT','DELETE','OPTIONS']
-  }
-});
+// Configure Socket.IO with the same CORS settings
+const io = new Server(server, { cors: corsOptions });
 
-const rooms = {};  // { [roomId]: { mentor: socketId|null, students: Set<socketId> } }
+const rooms = {}; // { [roomId]: { mentor: socketId|null, students: Set<socketId> } }
 
 io.on('connection', socket => {
   console.log('Socket connected:', socket.id);
@@ -41,6 +48,7 @@ io.on('connection', socket => {
     const room = rooms[roomId];
 
     socket.join(roomId);
+
     if (!room.mentor) {
       room.mentor = socket.id;
       socket.emit('role', 'mentor');
@@ -48,6 +56,7 @@ io.on('connection', socket => {
       room.students.add(socket.id);
       socket.emit('role', 'student');
     }
+
     io.to(roomId).emit('student-count', room.students.size);
 
     socket.on('code-change', code => socket.to(roomId).emit('code-update', code));
