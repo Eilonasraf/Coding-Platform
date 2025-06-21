@@ -27,6 +27,7 @@ export default function LobbyPage() {
     );
   }
 
+  // purpose: Display a list of code blocks available for selection
   return (
     <section className="lobby-container">
       <h1 className="lobby-header">Choose a Code Block</h1>

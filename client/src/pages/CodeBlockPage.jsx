@@ -72,7 +72,7 @@ export default function CodeBlockPage() {
     };
   }, [blockId, role]);
 
-  // 4) Load *your* snapshots on mount
+  // 4) Load my snapshots on mount
   const loadMySnapshots = async () => {
     try {
       const list = await fetchSnapshots(blockId, clientId);

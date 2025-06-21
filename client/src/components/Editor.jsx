@@ -2,7 +2,7 @@
 // ----------------------------------
 // Purpose: Wraps the CodeMirror editor with standardized props for value, readOnly, and onChange.
 // Dependencies: npm install @uiw/react-codemirror @codemirror/lang-javascript @uiw/codemirror-theme-dracula
-// Usage: Import and use in CodeBlockPage.jsx, passing in the current code, readOnly flag, and change handler.
+// Usage: Import and using CodeBlockPage.jsx, passing in the current code, readOnly flag, and change handler.
 
 import React from 'react';
 import CodeMirror from '@uiw/react-codemirror';
