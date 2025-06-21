@@ -1,0 +1,34 @@
+/* dark “card” around the editor */
+.editor {
+  width: 100%;
+  max-width: 700px;
+  background: #1e1e1e;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  overflow: hidden;
+}
+
+/* make the editing area fill the card */
+.editor .cm-editor {
+  height: 60vh;
+}
+
+/* match Dracula theme more closely */
+.editor .cm-scroller {
+  background-color: #1e1e1e !important;
+}
+.editor .cm-gutters {
+  background-color: #252526 !important;
+  color: #858585 !important;
+  border-right: 1px solid #333 !important;
+}
+.editor .cm-content { color: #d4d4d4 !important; }
+.editor .cm-comment { color: #6a9955 !important; }
+
+/* dashed underline on active line */
+.editor .cm-activeLine > .cm-line::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  border-bottom: 1px dashed #888;
+}

@@ -1,0 +1,22 @@
+/* client/src/components/SmileyOverlay.css */
+/* Styles for the full-screen smiley overlay */
+
+.smiley-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.smiley-overlay h1 {
+  font-size: 6rem;
+  color: #ffeb3b; /* bright yellow for a cheerful effect */
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  margin: 0;
+}

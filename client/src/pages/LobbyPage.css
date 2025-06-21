@@ -1,0 +1,105 @@
+:root {
+  --accent: #4cafcb;
+  --text: #213547;
+  --muted: #666666;
+  --bg: #ffffff;
+  --card-shadow: rgba(0,0,0,0.08);
+  --card-shadow-hover: rgba(0,0,0,0.12);
+}
+
+.lobby-container {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg);
+}
+
+.lobby-header {
+  font-size: 2.5rem;
+  color: var(--text);
+  margin-bottom: 1.5rem;
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.block-card {
+  position: relative;
+  background: var(--bg);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px var(--card-shadow);
+  padding: 1.5rem;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+.block-card:hover,
+.block-card:focus {
+  transform: translateY(-6px) rotateX(1.5deg) rotateY(1.5deg);
+  box-shadow: 0 12px 28px var(--card-shadow-hover);
+  border-color: var(--accent);
+}
+
+.block-badge {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.block-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.3rem;
+  color: var(--accent);
+}
+
+.block-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Skeleton loading style */
+.skeleton {
+  background: linear-gradient(90deg, #eee, #f5f5f5, #eee);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1e1e;
+    --text: #fafafa;
+    --muted: #aaa;
+    --card-shadow: rgba(0,0,0,0.6);
+    --card-shadow-hover: rgba(0,0,0,0.8);
+  }
+  body {
+    background: var(--bg);
+  }
+}
