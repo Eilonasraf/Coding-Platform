@@ -28,7 +28,7 @@ mongoose
     process.exit(1);
   });
 
-// Mount your CodeBlocks router
+// Mount CodeBlocks router
 app.use('/api/codeblocks', blocksRouter);
 
 // Health check
