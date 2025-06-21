@@ -44,6 +44,7 @@ const io = new Server(server, {
 
 // Socket.IO room management
 const rooms = {};
+const socketRooms = {}; // Track which room each socket is in
 
 io.on('connection', socket => {
   console.log('Socket connected:', socket.id);
@@ -51,53 +52,81 @@ io.on('connection', socket => {
   socket.on('join-room', roomId => {
     console.log(`Socket ${socket.id} joining room ${roomId}`);
     
+    // Leave previous room if any
+    const previousRoom = socketRooms[socket.id];
+    if (previousRoom) {
+      socket.leave(previousRoom);
+      handleRoomLeave(socket, previousRoom);
+    }
+    
+    // Join new room
     if (!rooms[roomId]) {
       rooms[roomId] = { mentor: null, students: new Set() };
     }
     
     const room = rooms[roomId];
     socket.join(roomId);
+    socketRooms[socket.id] = roomId; // Track which room this socket is in
 
     // Assign role: first person is mentor, others are students
     if (!room.mentor) {
       room.mentor = socket.id;
       socket.emit('role', 'mentor');
-      console.log(`${socket.id} assigned as mentor`);
+      console.log(`${socket.id} assigned as mentor in room ${roomId}`);
     } else {
       room.students.add(socket.id);
       socket.emit('role', 'student');
-      console.log(`${socket.id} assigned as student`);
+      console.log(`${socket.id} assigned as student in room ${roomId}`);
     }
 
     // Send student count to all in room
     io.to(roomId).emit('student-count', room.students.size);
-
-    // Handle code changes
-    socket.on('code-change', code => {
-      socket.to(roomId).emit('code-update', code);
-    });
-    
-    // Handle disconnect
-    socket.on('disconnect', () => {
-      const r = rooms[roomId];
-      if (!r) return;
-      
-      if (socket.id === r.mentor) {
-        // Mentor left - notify students and clean up room
-        io.to(roomId).emit('mentor-left');
-        // Force everyone to leave the room
-        io.in(roomId).socketsLeave(roomId);
-        // Clean up server‐side state
-        delete rooms[roomId];
-        console.log(`Mentor ${socket.id} left, room ${roomId} deleted`);
-      } else {
-        // Student left
-        r.students.delete(socket.id);
-        io.to(roomId).emit('student-count', r.students.size);
-        console.log(`Student ${socket.id} left room ${roomId}`);
-      }
-    });
   });
+
+  // Handle code changes
+  socket.on('code-change', code => {
+    const currentRoom = socketRooms[socket.id];
+    if (currentRoom) {
+      socket.to(currentRoom).emit('code-update', code);
+    }
+  });
+
+  // Handle explicit leave-room (when user clicks Leave button)
+  socket.on('leave-room', roomId => {
+    console.log(`Socket ${socket.id} explicitly leaving room ${roomId}`);
+    handleRoomLeave(socket, roomId);
+    socket.leave(roomId);
+    delete socketRooms[socket.id];
+  });
+  
+  // Handle disconnect (moved to top level)
+  socket.on('disconnect', () => {
+    console.log(`Socket ${socket.id} disconnected`);
+    const currentRoom = socketRooms[socket.id];
+    if (currentRoom) {
+      handleRoomLeave(socket, currentRoom);
+      delete socketRooms[socket.id];
+    }
+  });
+  
+  // Helper function to handle room leaving
+  function handleRoomLeave(socket, roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+    
+    if (room.mentor === socket.id) {
+      // Mentor is leaving - notify all students and clean up room
+      console.log(`Mentor ${socket.id} leaving room ${roomId} - notifying students`);
+      socket.to(roomId).emit('mentor-left');
+      delete rooms[roomId];
+      console.log(`Room ${roomId} deleted`);
+    } else if (room.students.has(socket.id)) {
+      // Student is leaving
+      room.students.delete(socket.id);
+      io.to(roomId).emit('student-count', room.students.size);
+      console.log(`Student ${socket.id} left room ${roomId}`);
+    }
+  }
 });
 
 // Listen on Railway's port
